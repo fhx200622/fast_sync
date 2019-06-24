@@ -1,30 +1,45 @@
-#!/bin/bash 
+#!/bin/bash
 
-read user1
-read user2
-read user3
+set -e
 
-ip1 =
-pa1 = 
-getip user1
-transfile ip1 pa1
+//check input
+if [ $# -ne 2]
+then
+    echo "input wrong"
+fi
 
-getip(){
-    loacl indexip = expr index $1 "@"
-    loacl indexpa = expr index $1 "\s"
-    loacl length = expr length $1
-    loacl a = indexip + 1
-    local b = indexpa + 1
-    local l1 = indexpa - indexip - 1
-    local l2 = length - indexpa
-    ip1 = expr substr $1 $a $l1
-    pa1 = expr substr $1 $b $l2
-}
+config = $1
+sync = $2
 
-transfile(){
-    
-}
+//check file existence
+if [ ! -e config]
+then
+    echo "config file does not exist"
+    exit 1
+fi
 
-    
+if [ ! -e sync]
+then
+    echo "sync file does not exist"
+    exit 1
+fi
 
-ssh origin@10.10.11.61
+//get target user and passport
+user = $(head -1 config | cut -f1 -d ' ')
+pass = $(head -1 config | cut -f2 -d ' ')
+
+//transport sync file
+sshpass -p $pass scp $sync $user:$sync
+
+//divide the config into two
+split -l $((($(wc -l < config)+1)/2)) $config ${config}_
+
+//use the first half config file to cover the original local config file
+cp -f $config ${config}_aa
+
+//transport second half config file and fast_sync.sh
+sshpass -p $pass scp fast_sync.sh $user:/fast_sync.sh
+sshpass -p $pass scp ${config}_ab $user:/$config
+
+//let remote computer run fast_sync.sh
+sshpass -p $pass ssh $user "sh/fast_sync.sh $config $sync"
